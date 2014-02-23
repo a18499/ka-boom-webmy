@@ -1,0 +1,284 @@
+﻿<html>
+
+<head>
+
+<script src="https://code.jquery.com/jquery-2.0.3.min.js"></script>
+<script>
+var padding = 20;
+var mouse={};
+var startObj={x:0,y:0};
+var handleModify=function(){};
+var handleOver=function(){};
+var editMode=true;
+var editBox;
+function initToolBox()
+{
+	var dragPanel;
+	var rotateBox,rotateLine;
+	var infoBox;
+	var scaleBox={};
+	var scaleSize=8;
+	var boxInitSize=100;
+	var hscaleSize=scaleSize>>1;
+	editBox=$("<div id='editBox'>").css({"display":"none","height":boxInitSize,"width":boxInitSize,"top":boxInitSize,"left":boxInitSize,"border":"1px solid","position":"absolute","z-index":"999"});
+	infoBox=$("<div id='infoBox'>").css({"position":"absolute","top":"100%","text-align":"center","width":"100%"});
+	dragPanel=$("<div>").css({"height":"100%","width":"100%","background-color":"blue","opacity":"0.5","cursor":"move"});
+	rotateBox=$("<div>").css({"left":"50%","top":"0","border-radius":"5px","height":scaleSize,"width":scaleSize,"background-color":"black","position":"absolute","margin-left":-hscaleSize,"margin-top":-scaleSize*3,"cursor":"crosshair"});
+	rotateLine=$("<div>").css({"left":"50%",width:2,"margin-left":-1,top:0,"margin-top":-scaleSize*3,"height":scaleSize*3,"position":"absolute","background-color":"black","z-index":"-1"});
+	scaleBox["lu"]=$("<div>").css({"left":"0","top":"0"}).css("cursor","se-resize");
+	scaleBox["ld"]=$("<div>").css({"left":"0","top":"100%"}).css("cursor","sw-resize");
+	scaleBox["ru"]=$("<div>").css({"left":"100%","top":"0"}).css("cursor","sw-resize");
+	scaleBox["rd"]=$("<div>").css({"left":"100%","top":"100%"}).css("cursor","se-resize");
+	for(var s in scaleBox)
+	{
+		scaleBox[s].attr("id",s).css({height:scaleSize,width:scaleSize,"background-color":"black","position":"absolute","margin-top":-hscaleSize,"margin-left":-hscaleSize});
+		editBox.append(scaleBox[s]);
+		//縮放功能
+		scaleBox[s].mousedown(function(e){
+			var sxyFilter={rd:[0,0],ld:[1,0],lu:[1,1],ru:[0,1]};
+			var sKey=$(this).attr("id");
+			editBox.sx=parseInt(editBox.css("left"))+(sxyFilter[sKey][0] && editBox.width());
+			editBox.sy=parseInt(editBox.css("top"))+(sxyFilter[sKey][1] && editBox.height());
+			handleModify=function(){
+				var scaleX=Math.abs(mouse.x-editBox.sx);
+				var scaleY=Math.abs(mouse.y-editBox.sy);
+				var scaleValue=Math.max(scaleX,scaleY);
+				var sxy0 = sxyFilter[sKey][0] || null;
+				var sxy1 = sxyFilter[sKey][1] || null;
+				editBox.css({
+					height:scaleValue,
+					width:scaleValue,
+					left:sxy0 && (editBox.sx-scaleValue),
+					top:sxy1 && (editBox.sy-scaleValue)
+				});
+				if(editBox.bindComp)
+				{
+					editBox.bindComp.css({
+						height:scaleValue,
+						width:scaleValue,
+						left:sxy0 && (editBox.sx-scaleValue-1),
+						top:sxy1 && (editBox.sy-scaleValue-1)
+					});
+				}
+				editBox.showMsg("Size:"+scaleValue);
+			}
+			handleOver=editBox.clearMsg;
+			e.preventDefault();
+		});
+	}
+	editBox.append(infoBox);
+	editBox.append(dragPanel);
+	editBox.append(rotateBox);
+	editBox.append(rotateLine);
+	//拖曳功能
+	dragPanel.mousedown(function(e){
+		editBox.ox=e.offsetX;
+		editBox.oy=e.offsetY;
+		handleModify=function(){
+			editBox.x=mouse.x;
+			editBox.y=mouse.y;
+			editBox.showMsg(editBox.x+","+editBox.y);
+			editBox.css({left:mouse.x-editBox.ox,top:mouse.y-editBox.oy})
+			if(editBox.bindComp)
+			{
+				editBox.bindComp.css({
+					left:mouse.x-editBox.ox+1-parseInt(editBox.bindComp.css("margin-left")),
+					top:mouse.y-editBox.oy+1-parseInt(editBox.bindComp.css("margin-top"))
+				})
+			}
+		}
+		handleOver=editBox.clearMsg;
+		e.preventDefault();
+	});
+	//旋轉功能
+	rotateBox.mousedown(function(e){
+		var center=editBox.centerValue();
+		editBox.rx=center["x"];
+		editBox.ry=center["y"];
+		handleModify=function(){
+			var l=(mouse.x-editBox.rx)/(mouse.y-editBox.ry);
+			var deg=Math.round(Math.atan(l)*180/Math.PI);
+			if(mouse.x>editBox.rx && mouse.y< editBox.ry)
+				deg=-deg;
+			else if(mouse.x>editBox.rx && mouse.y > editBox.ry)
+				deg=-(-180+deg);
+			else if(mouse.x<editBox.rx && mouse.y > editBox.ry)
+				deg=180+(-deg);
+			else if(mouse.x<editBox.rx && mouse.y < editBox.ry)
+				deg=-(-360+deg);
+			editBox.showMsg(deg+"<sup>。</sup>");
+			editBox.deg=deg;
+			editBox.bindComp.deg=deg;
+			editBox.css("transform","rotate("+deg+"deg)");
+			if(editBox.bindComp)
+				editBox.bindComp.css("transform","rotate("+deg+"deg)");
+		}
+		handleOver=editBox.clearMsg;
+		e.preventDefault();
+	});
+
+	
+	//綁定物件
+	editBox.bindObj=function(e){
+		var deg=0;
+		if(e.deg!=null)
+			deg=e.deg;
+		editBox.show();
+		editBox.bindComp=e;
+		editBox.css({
+			"height":e.height(),
+			"width":e.width(),
+			"left":parseInt(e.css("left"))-1+parseInt(e.css("margin-left")),
+			"top":parseInt(e.css("top"))-1+parseInt(e.css("margin-top")),
+			"transform":"rotate("+deg+"deg)"
+		});
+	}
+	editBox.centerValue=function(){
+		var center={};
+		center["x"]=parseInt(editBox.css("left"))+(editBox.width()>>1);
+		center["y"]=parseInt(editBox.css("top"))+(editBox.height()>>1);
+		return center;
+	}
+	editBox.showMsg=function(str)
+	{
+		$("#infoBox").html(str);
+	}
+	editBox.clearMsg=function()
+	{
+		$("#infoBox").html("");
+	}
+	//控制拖曳
+	$(document).mousemove(function(e){
+		//處理縮放偏移
+		if(zoom.zoomLevel()==1)
+			startObj={x:0,y:0};
+		mouse.x=Math.round(e.pageX/zoom.zoomLevel()+startObj.x);
+		mouse.y=Math.round(e.pageY/zoom.zoomLevel()+startObj.y);
+		handleModify();
+	});
+	$(document).mouseup(function(e){
+		if(e.target==document.body)
+			editBox.hide();
+		handleModify=function(){};
+		handleOver();
+	});
+	return editBox;
+}
+function compObject(x,y,w,h,view,type,source){
+	var tmpObject=new function(){
+		this.toJSON=function(){
+		};
+		this.setToolBox=function(){	//設定編輯功能
+			$(this.view).css({"cursor":"pointer"});
+			$(this.view).click(function(e){
+				if(editMode)
+				{
+					editBox.bindObj(tmpObject.view);
+					e.preventDefault();
+				}
+                else
+                {   
+                    if(type == "img"){
+                      
+                        if ($(this).attr("title") == "unselect"){
+                            $(this).attr({"src":"Button/check31.png","title":"select"});//當前物件的css屬性  
+                                       
+                            
+                        }
+                        else{
+
+                             $(this).attr({"src":"Button/check29.png","title":"unselect"});//當前物件的css屬性                         
+                             
+                        }
+
+                    }
+                }
+			});
+		};
+		this.renderView=function(){	//產生介面
+            if(type == "img"){ //產生圖片icon              
+                    var test =document.createElement("img");                    
+                    var a=Math.floor(Math.random()*(100-0));//設定1~100亂數的id                     
+                    test.id = "test";
+                    test.src = source;
+                    test.title = "unselect";
+                    var div=$(test);
+                    if(view==null)
+                        $("body").append(div);              
+                    else
+                        $(view).append(div);
+                        div.css({position:"absolute",left:this.x,top:this.y,width:this.width,height:this.height});
+                        //div.css("background-color","red");
+                        this.view=div;
+                    }
+            else{
+                    var test =document.createElement("input");     
+                    test.type = "checkbox";                   
+                            
+                    test.id = "test";                    
+                    var div=$(test);
+                    if(view==null)
+                        $("body").append(div);              
+                    else
+                        $(view).append(div);
+                        div.css({position:"absolute",left:this.x,top:this.y,width:this.width,height:this.height});
+                        //div.css("background-color","red");
+                        this.view=div;
+            }
+			
+		};
+		return this;
+	}
+	tmpObject.x=x||0;
+	tmpObject.y=y||0;
+	tmpObject.width=w||10;
+	tmpObject.height=h||10;
+/////////////////////////////////
+	tmpObject.renderView();
+	tmpObject.setToolBox();
+/////////////////////////////////
+	return tmpObject;
+}
+//
+function createimg(){
+    var source = "Button/check29.png";
+    new compObject(200,200,50,50,$("#content"),"img",source); //建立可拖曳物件
+    
+}
+$(document).ready(function(){
+	
+	$("#content").append(initToolBox());
+	$("#delete").click(function(){	//刪除可拖曳物件按鈕
+		$( "input" ).remove( "#test" );//刪除
+	});
+    $("#delete_icon").click(function(){  //刪除可拖曳物件圖片
+        $( "img" ).remove( "#test" );//刪除
+    });
+	$("#create").click(function(){	//建立可拖曳物件按鈕
+		new compObject(200,200,50,50,$("#content"),"checkbox","checkbox");	//建立可拖曳物件         
+	});
+	$("#cube").click(function(){	//縮放
+		startObj={x:this.getBoundingClientRect().left - padding,y:this.getBoundingClientRect().top - padding}	//縮放起始位置
+		zoom.to({ zoomView:document.querySelector("#content"),element: this});
+	});
+	$("#mode").click(function(){
+		editMode=!editMode;
+		editBox.hide();
+		$("#mode").text((editMode)?"編輯模式":"預覽模式");
+	});
+});
+</script>
+</head>
+<body>   
+    <button id="create">建立checkbox</button>
+    <img src="Button/check31.png" onclick ="createimg()" height ="70" width ="100"> </img>
+    <button id="delete">刪除checkbox</button>
+    <button id="delete_icon">刪除icon</button>
+    <button id="mode">編輯模式</button>
+    <div id="content">
+        <div id="cube" style="position:absolute;left:80px;top:80px;background-color:green;width:50px;height:50px">放大</div>
+    </div>
+</body>
+<script src="js/zoom.js"></script>
+
+</html>
